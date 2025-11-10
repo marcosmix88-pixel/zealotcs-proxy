@@ -1,31 +1,38 @@
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
+import https from "https";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Permitir solo tu dominio:
+// Permitir solo tu dominio
 const corsOptions = {
   origin: "https://zealotcs.com",
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 
+// Caché
 let cache = { server: null, players: null, lastUpdate: 0 };
 const CACHE_TIME = 30 * 60 * 1000; // 30 minutos
 
-// 🔁 Función para actualizar datos desde Tsarvar
+// Agent para ignorar errores SSL/TLS
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+// Función para actualizar datos desde Tsarvar
 async function actualizarDatos() {
   try {
     console.log("⏳ Actualizando datos desde Tsarvar...");
     const url = "https://api.tsarvar.com/v1/servers/counter-strike-1.6/131.221.33.14:27040";
+
     const res = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0",
         "Accept": "application/json, text/plain, */*",
         "Referer": "https://tsarvar.com/"
-      }
+      },
+      agent: httpsAgent
     });
 
     const data = await res.json();
@@ -38,7 +45,7 @@ async function actualizarDatos() {
   }
 }
 
-// 🔁 Actualizar automáticamente cada 30 minutos
+// Actualizar automáticamente cada 30 minutos
 setInterval(actualizarDatos, CACHE_TIME);
 
 // Cargar una vez al iniciar
