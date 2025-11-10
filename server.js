@@ -1,7 +1,6 @@
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
-import https from "https";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,22 +16,22 @@ app.use(cors(corsOptions));
 let cache = { server: null, players: null, lastUpdate: 0 };
 const CACHE_TIME = 30 * 60 * 1000; // 30 minutos
 
-// Agent para ignorar errores SSL/TLS
-const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+// URL original de Tsarvar
+const TSARVAR_URL = encodeURIComponent(
+  "https://tsarvar.com/es/servers/counter-strike-1.6/131.221.33.14:27040"
+);
 
-// Función para actualizar datos desde Tsarvar
+// Función para actualizar datos usando AllOrigins
 async function actualizarDatos() {
   try {
-    console.log("⏳ Actualizando datos desde Tsarvar...");
-    const url = "https://api.tsarvar.com/v1/servers/counter-strike-1.6/131.221.33.14:27040";
+    console.log("⏳ Actualizando datos desde Tsarvar vía AllOrigins...");
+    const proxyUrl = `https://api.allorigins.win/raw?url=${TSARVAR_URL}`;
 
-    const res = await fetch(url, {
+    const res = await fetch(proxyUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json, text/plain, */*",
-        "Referer": "https://tsarvar.com/"
-      },
-      agent: httpsAgent
+        "Accept": "application/json, text/plain, */*"
+      }
     });
 
     const data = await res.json();
