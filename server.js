@@ -1,6 +1,7 @@
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
+import cheerio from "cheerio";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,69 +15,81 @@ app.use(cors(corsOptions));
 
 // Caché
 let cache = { server: null, players: null, lastUpdate: 0 };
-const CACHE_TIME = 30 * 60 * 1000; // 30 minutos
+const CACHE_TIME = 30 * 60 * 1000; // 30 min
 
-// URL original de Tsarvar
-const TSARVAR_URL = encodeURIComponent(
-  "https://tsarvar.com/es/servers/counter-strike-1.6/131.221.33.14:27040"
-);
+const TSARVAR_URL = "https://tsarvar.com/es/servers/counter-strike-1.6/131.221.33.14:27040/players?sort=scoreRank&compact";
 
-// Función para actualizar datos usando AllOrigins
+// Función para scrapear HTML y convertir a JSON
 async function actualizarDatos() {
   try {
-    console.log("⏳ Actualizando datos desde Tsarvar vía AllOrigins...");
-    const proxyUrl = `https://api.allorigins.win/raw?url=${TSARVAR_URL}`;
-
-    const res = await fetch(proxyUrl, {
+    console.log("⏳ Actualizando datos desde Tsarvar...");
+    const res = await fetch(TSARVAR_URL, {
       headers: {
         "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json, text/plain, */*"
+        "Accept": "text/html"
+      }
+    });
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    // Lista de jugadores
+    const players = [];
+    $("table tbody tr").each((i, el) => {
+      const tds = $(el).find("td");
+      if(tds.length >= 3){
+        players.push({
+          name: $(tds[0]).text().trim(),
+          score: parseInt($(tds[1]).text().trim()) || 0,
+          time: $(tds[2]).text().trim()
+        });
       }
     });
 
-    const data = await res.json();
-    cache.server = data;
-    cache.players = data.players || [];
+    // Información del servidor
+    const serverName = $("h3.srvPage-contLabel").first().text().trim();
+    const map = $(".srvPage-contMap").text().trim();
+    const slotsText = $(".srvPage-contSlots").text().trim();
+    const slotsMatch = slotsText.match(/(\d+)\/(\d+)/);
+    const server = {
+      name: serverName,
+      map: map || "",
+      slots: slotsMatch ? { current: parseInt(slotsMatch[1]), max: parseInt(slotsMatch[2]) } : null,
+      players: players
+    };
+
+    cache.server = server;
+    cache.players = players;
     cache.lastUpdate = Date.now();
-    console.log("✅ Datos actualizados correctamente");
+
+    console.log(`✅ Datos actualizados. Jugadores conectados: ${players.length}`);
   } catch (err) {
     console.error("❌ Error actualizando datos:", err.message);
   }
 }
 
-// Actualizar automáticamente cada 30 minutos
+// Actualizar cada 30 min
 setInterval(actualizarDatos, CACHE_TIME);
 
-// Cargar una vez al iniciar
+// Primera carga
 actualizarDatos();
 
-// Endpoint raíz
+// Endpoints
 app.get("/", (req, res) => {
-  res.send("✅ ZEALOTCS Proxy activo en Render.com — endpoints: /server /players");
+  res.send("✅ ZEALOTCS Proxy activo — endpoints: /server /players");
 });
 
-// Endpoint para toda la info del servidor
 app.get("/server", async (req, res) => {
-  try {
-    if (!cache.server || Date.now() - cache.lastUpdate > CACHE_TIME) {
-      await actualizarDatos();
-    }
-    res.json(cache.server || { error: "Sin datos en caché" });
-  } catch (err) {
-    res.json({ error: "Error al obtener los datos del servidor", detalle: err.message });
+  if (!cache.server || Date.now() - cache.lastUpdate > CACHE_TIME) {
+    await actualizarDatos();
   }
+  res.json(cache.server || { error: "Sin datos en caché" });
 });
 
-// Endpoint solo para jugadores
 app.get("/players", async (req, res) => {
-  try {
-    if (!cache.players || Date.now() - cache.lastUpdate > CACHE_TIME) {
-      await actualizarDatos();
-    }
-    res.json(cache.players || []);
-  } catch (err) {
-    res.json({ error: "Error al obtener jugadores", detalle: err.message });
+  if (!cache.players || Date.now() - cache.lastUpdate > CACHE_TIME) {
+    await actualizarDatos();
   }
+  res.json(cache.players || []);
 });
 
 app.listen(PORT, () => console.log(`🚀 ZEALOTCS Proxy activo en puerto ${PORT}`));
