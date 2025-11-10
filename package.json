@@ -1,0 +1,15 @@
+{
+  "name": "zealotcs-proxy",
+  "version": "1.0.0",
+  "description": "Proxy para mostrar datos del servidor ZEALOT CS 1.6 desde Tsarvar con caché 30 minutos",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
+  }
+}
